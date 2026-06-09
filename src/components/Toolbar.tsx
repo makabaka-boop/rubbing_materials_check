@@ -6,9 +6,10 @@ import { cn } from '@/lib/utils'
 interface ToolbarProps {
   onAddClick: () => void
   onTransferClick: () => void
+  onCheckTaskClick: () => void
 }
 
-export function Toolbar({ onAddClick, onTransferClick }: ToolbarProps) {
+export function Toolbar({ onAddClick, onTransferClick, onCheckTaskClick }: ToolbarProps) {
   const { filters, setFilter, resetFilters, preEventMode, togglePreEventMode, onlyPendingTransfers, toggleOnlyPendingTransfers, selectedIds, batchSetStatus, clearSelection, deleteMaterials, materials, getFilteredMaterials, getPreEventMaterials, transfers } = useStore()
 
   const displayMaterials = preEventMode ? getPreEventMaterials() : getFilteredMaterials()
@@ -59,6 +60,13 @@ export function Toolbar({ onAddClick, onTransferClick }: ToolbarProps) {
           </button>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={onCheckTaskClick}
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber/90 text-paper rounded-lg text-sm font-medium hover:bg-amber transition-colors shadow-md shadow-amber/20"
+          >
+            <ClipboardCheck size={15} />
+            清点任务
+          </button>
           <button
             onClick={onTransferClick}
             className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber text-paper rounded-lg text-sm font-medium hover:bg-amber/90 transition-colors shadow-md shadow-amber/20"

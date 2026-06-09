@@ -71,9 +71,50 @@ export const TRANSFER_STATUS_COLORS: Record<TransferStatus, string> = {
   '已取消': 'bg-ink-muted/15 text-ink-muted border-ink-muted/30',
 }
 
+export type CheckTaskStatus = '进行中' | '已完成' | '已取消'
+export type CheckItemStatus = '待清点' | '充足' | '缺口' | '异常'
+
+export interface CheckItem {
+  materialId: string
+  actualQuantity: number | null
+  gapQuantity: number
+  suggestion: string
+  checkNote: string
+  status: CheckItemStatus
+}
+
+export interface CheckTask {
+  id: string
+  name: string
+  eventTime: string
+  responsible: string
+  materialIds: string[]
+  items: CheckItem[]
+  status: CheckTaskStatus
+  createdAt: string
+  updatedAt: string
+  completedAt?: string
+}
+
 export const ANOMALY_ICONS: Record<AnomalyType, string> = {
   '低存量': 'AlertTriangle',
   '同名重复': 'Copy',
   '柜位冲突': 'Layers',
   '责任人空缺': 'UserX',
+}
+
+export const CHECK_TASK_STATUSES: CheckTaskStatus[] = ['进行中', '已完成', '已取消']
+export const CHECK_ITEM_STATUSES: CheckItemStatus[] = ['待清点', '充足', '缺口', '异常']
+
+export const CHECK_TASK_STATUS_COLORS: Record<CheckTaskStatus, string> = {
+  '进行中': 'bg-amber/15 text-amber border-amber/30',
+  '已完成': 'bg-pine/15 text-pine border-pine/30',
+  '已取消': 'bg-ink-muted/15 text-ink-muted border-ink-muted/30',
+}
+
+export const CHECK_ITEM_STATUS_COLORS: Record<CheckItemStatus, string> = {
+  '待清点': 'bg-ink-muted/15 text-ink-muted border-ink-muted/30',
+  '充足': 'bg-pine/15 text-pine border-pine/30',
+  '缺口': 'bg-vermilion/15 text-vermilion border-vermilion/30',
+  '异常': 'bg-amber/15 text-amber border-amber/30',
 }
