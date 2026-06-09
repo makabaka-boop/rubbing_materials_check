@@ -1,6 +1,7 @@
-import { AlertTriangle, Copy, Layers, UserX, FileText, AlertCircle, ArrowRightLeft, CheckCircle, Clock } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { AlertTriangle, Copy, Layers, UserX, FileText, AlertCircle, ArrowRightLeft, CheckCircle, Clock, ClipboardCheck, ArrowRight } from 'lucide-react'
 import { useStore } from '@/store/useStore'
-import { ANOMALY_ICONS, TRANSFER_STATUS_COLORS, type AnomalyType, type Transfer } from '@/types'
+import { ANOMALY_ICONS, TRANSFER_STATUS_COLORS, CHECK_TASK_STATUS_COLORS, CHECK_ITEM_STATUS_COLORS, type AnomalyType, type Transfer } from '@/types'
 import { cn } from '@/lib/utils'
 
 const ICON_MAP: Record<string, React.ElementType> = {
@@ -24,8 +25,13 @@ const ANOMILY_ICON_COLORS: Record<AnomalyType, string> = {
   '责任人空缺': 'text-vermilion',
 }
 
-export function SummaryPanel() {
-  const { anomalies, selectedIds, materials, transfers, toggleSelect, preEventMode, getFilteredMaterials, getPreEventMaterials } = useStore()
+interface SummaryPanelProps {
+  onEditTask?: (taskId: string) => void
+}
+
+export function SummaryPanel({ onEditTask }: SummaryPanelProps) {
+  const navigate = useNavigate()
+  const { anomalies, selectedIds, materials, transfers, toggleSelect, preEventMode, getFilteredMaterials, getPreEventMaterials, checkTasks } = useStore()
 
   const displayMaterials = preEventMode ? getPreEventMaterials() : getFilteredMaterials()
   const displayIdSet = new Set(displayMaterials.map((m) => m.id))
@@ -45,6 +51,15 @@ export function SummaryPanel() {
     }
     return sum
   }, 0)
+
+  const activeTasks = checkTasks.filter((t) => t.status === '进行中')
+  const allTaskGapItems = activeTasks.flatMap((t) =>
+    t.items.filter((i) => i.status === '缺口').map((i) => ({ ...i, taskName: t.name, taskId: t.id }))
+  )
+  const allTaskAnomalyItems = activeTasks.flatMap((t) =>
+    t.items.filter((i) => i.status === '异常').map((i) => ({ ...i, taskName: t.name, taskId: t.id }))
+  )
+  const totalTaskGap = allTaskGapItems.reduce((sum, i) => sum + i.gapQuantity, 0)
 
   const TransferCard = ({ t, clickable = false }: { t: Transfer; clickable?: boolean }) => (
     <div
@@ -75,7 +90,7 @@ export function SummaryPanel() {
   )
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-6">
+    <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-5 gap-6">
       <div className="space-y-4">
         <div className="flex items-center gap-2">
           <FileText size={16} className="text-ink" />
@@ -232,6 +247,158 @@ export function SummaryPanel() {
             {completedTransfers.slice(-8).reverse().map((t) => (
               <TransferCard key={t.id} t={t} />
             ))}
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <ClipboardCheck size={16} className="text-amber" />
+            <h3 className="font-serif text-base font-semibold text-ink">清点任务</h3>
+          </div>
+          {activeTasks.length > 0 && (
+            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber text-paper text-[10px] font-bold">
+              {activeTasks.length}
+            </span>
+          )}
+        </div>
+
+        {activeTasks.length === 0 ? (
+          <div className="text-sm text-ink-muted py-6 text-center bg-amber/[0.03] rounded-xl border border-amber/10">
+            暂无进行中的清点任务
+          </div>
+        ) : (
+          <div className="space-y-2.5 max-h-[280px] overflow-y-auto pr-1">
+            {activeTasks.map((task) => {
+              const gapCount = task.items.filter((i) => i.status === '缺口').length
+              const anomalyCount = task.items.filter((i) => i.status === '异常').length
+              const pendingCount = task.items.filter((i) => i.status === '待清点').length
+              const sufficientCount = task.items.filter((i) => i.status === '充足').length
+
+              return (
+                <div
+                  key={task.id}
+                  className="p-3 rounded-xl border border-amber/20 bg-amber/[0.02] transition-all"
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="font-medium text-sm text-ink">{task.name}</span>
+                    <div className="flex items-center gap-1">
+                      <span className={cn('text-[10px] px-1.5 py-0.5 rounded-full border', CHECK_TASK_STATUS_COLORS[task.status])}>
+                        {task.status}
+                      </span>
+                      <button
+                        onClick={() => navigate(`/check-task/${task.id}`)}
+                        className="p-0.5 text-ink-muted hover:text-ink rounded transition-colors"
+                      >
+                        <ArrowRight size={12} />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="text-xs text-ink-muted mb-1.5">
+                    {task.responsible} · {task.items.length} 项
+                  </div>
+                  <div className="flex gap-1.5 flex-wrap">
+                    {pendingCount > 0 && (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-ink-muted/10 text-ink-muted">
+                        待清点 {pendingCount}
+                      </span>
+                    )}
+                    {gapCount > 0 && (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-vermilion/10 text-vermilion">
+                        缺口 {gapCount}
+                      </span>
+                    )}
+                    {anomalyCount > 0 && (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-amber/10 text-amber">
+                        异常 {anomalyCount}
+                      </span>
+                    )}
+                    {sufficientCount > 0 && (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-pine/10 text-pine">
+                        充足 {sufficientCount}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {allTaskGapItems.length > 0 && (
+          <div className="p-3 rounded-xl bg-vermilion/[0.04] border border-vermilion/15">
+            <div className="flex items-center gap-2 mb-1">
+              <AlertTriangle size={14} className="text-vermilion" />
+              <span className="text-xs font-semibold text-vermilion">任务缺口汇总</span>
+            </div>
+            <p className="text-xs text-ink-muted">
+              共 <span className="font-semibold text-vermilion">{allTaskGapItems.length}</span> 项缺口，总缺口 <span className="font-semibold text-vermilion">{totalTaskGap}</span> 件
+            </p>
+            <div className="mt-2 space-y-1 max-h-[100px] overflow-y-auto">
+              {allTaskGapItems.map((item) => {
+                const material = materials.find((m) => m.id === item.materialId)
+                return (
+                  <div key={item.materialId + item.taskId} className="flex items-center justify-between text-xs">
+                    <span className="text-ink-muted">
+                      <span className="text-ink">{material?.name || '未知'}</span>
+                      <span className="text-ink-muted ml-1">({item.taskName})</span>
+                    </span>
+                    <span className="text-vermilion font-semibold font-mono">-{item.gapQuantity}</span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {allTaskAnomalyItems.length > 0 && (
+          <div className="p-3 rounded-xl bg-amber/[0.04] border border-amber/15">
+            <div className="flex items-center gap-2 mb-1">
+              <AlertCircle size={14} className="text-amber" />
+              <span className="text-xs font-semibold text-amber">任务异常项汇总</span>
+            </div>
+            <div className="mt-1 space-y-1 max-h-[80px] overflow-y-auto">
+              {allTaskAnomalyItems.map((item) => {
+                const material = materials.find((m) => m.id === item.materialId)
+                return (
+                  <div key={item.materialId + item.taskId} className="flex items-center justify-between text-xs">
+                    <span className="text-ink-muted">
+                      <span className="text-ink">{material?.name || '未知'}</span>
+                      <span className="text-ink-muted ml-1">({item.taskName})</span>
+                    </span>
+                    <span className={cn('text-[10px] px-1.5 py-0.5 rounded-full border', CHECK_ITEM_STATUS_COLORS[item.status])}>
+                      {item.status}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {activeTasks.length > 0 && (allTaskGapItems.length > 0 || allTaskAnomalyItems.length > 0) && (
+          <div className="space-y-1.5">
+            {allTaskGapItems.slice(0, 3).map((item) => {
+              const material = materials.find((m) => m.id === item.materialId)
+              if (!material) return null
+              return (
+                <button
+                  key={`action-${item.materialId}-${item.taskId}`}
+                  onClick={() => navigate(`/check-task/${item.taskId}`)}
+                  className="w-full flex items-center justify-between p-2 rounded-lg bg-paper border border-ink/5 hover:border-ink/15 transition-all text-left"
+                >
+                  <div className="min-w-0">
+                    <span className="text-xs text-ink font-medium">{material.name}</span>
+                    <span className="text-[10px] text-ink-muted ml-1">缺口 {item.gapQuantity} 件</span>
+                  </div>
+                  <div className="flex items-center gap-1 text-[10px] text-amber shrink-0">
+                    <ArrowRightLeft size={10} />
+                    <span>去处理</span>
+                  </div>
+                </button>
+              )
+            })}
           </div>
         )}
       </div>
