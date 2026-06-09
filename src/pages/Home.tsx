@@ -1,15 +1,20 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useStore } from '@/store/useStore'
 import { Toolbar } from '@/components/Toolbar'
 import { MaterialTable } from '@/components/MaterialTable'
 import { SummaryPanel } from '@/components/SummaryPanel'
 import { AddMaterialModal } from '@/components/AddMaterialModal'
 import { TransferModal } from '@/components/TransferModal'
+import { CheckTaskModal } from '@/components/CheckTaskModal'
+import { CheckTaskList } from '@/components/CheckTaskList'
 import { ClipboardCheck, ArrowRightLeft } from 'lucide-react'
 
 export default function Home() {
+  const navigate = useNavigate()
   const [showAddModal, setShowAddModal] = useState(false)
   const [showTransferModal, setShowTransferModal] = useState(false)
+  const [showCheckTaskModal, setShowCheckTaskModal] = useState(false)
   const [transferFromMaterialId, setTransferFromMaterialId] = useState<string | undefined>(undefined)
   const { preEventMode, onlyPendingTransfers, getFilteredMaterials, getPreEventMaterials } = useStore()
 
@@ -23,7 +28,11 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-paper font-sans">
       <div className="max-w-[1600px] mx-auto px-6 py-6 space-y-5">
-        <Toolbar onAddClick={() => setShowAddModal(true)} onTransferClick={() => { setTransferFromMaterialId(undefined); setShowTransferModal(true) }} />
+        <Toolbar
+          onAddClick={() => setShowAddModal(true)}
+          onTransferClick={() => { setTransferFromMaterialId(undefined); setShowTransferModal(true) }}
+          onCheckTaskClick={() => setShowCheckTaskModal(true)}
+        />
 
         {(preEventMode || onlyPendingTransfers) && (
           <div className="flex items-center gap-4 flex-wrap">
@@ -44,17 +53,30 @@ export default function Home() {
           </div>
         )}
 
+        <CheckTaskList
+          onCreateClick={() => setShowCheckTaskModal(true)}
+          onOpenTask={(id) => navigate(`/check-tasks/${id}`)}
+        />
+
         <div className="bg-paper rounded-2xl border border-ink/8 shadow-sm overflow-hidden">
           <MaterialTable materials={displayMaterials} preEventMode={preEventMode} onRowTransfer={handleRowTransfer} />
         </div>
 
         <div className="bg-paper rounded-2xl border border-ink/8 shadow-sm p-5">
-          <SummaryPanel />
+          <SummaryPanel
+            onCreateCheckTask={() => setShowCheckTaskModal(true)}
+            onOpenCheckTask={(id) => navigate(`/check-tasks/${id}`)}
+          />
         </div>
       </div>
 
       <AddMaterialModal open={showAddModal} onClose={() => setShowAddModal(false)} />
       <TransferModal open={showTransferModal} onClose={() => setShowTransferModal(false)} initialFromMaterialId={transferFromMaterialId} />
+      <CheckTaskModal
+        open={showCheckTaskModal}
+        onClose={() => setShowCheckTaskModal(false)}
+        onCreated={(id) => navigate(`/check-tasks/${id}`)}
+      />
     </div>
   )
 }

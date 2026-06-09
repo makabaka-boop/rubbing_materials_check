@@ -1,6 +1,20 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { Material, FilterState, Anomaly, AnomalyType, MaterialStatus, Transfer, TransferStatus, TransferReason } from '@/types'
+import type {
+  Material,
+  FilterState,
+  Anomaly,
+  MaterialStatus,
+  Transfer,
+  TransferStatus,
+  TransferReason,
+  CheckTask,
+  CheckTaskItem,
+  CheckTaskStatus,
+  CheckItemResult,
+  CheckItemAction,
+  MaterialCategory,
+} from '@/types'
 
 const generateId = () => Math.random().toString(36).substring(2, 11) + Date.now().toString(36)
 
@@ -85,6 +99,21 @@ function detectAnomalies(materials: Material[]): Anomaly[] {
   return anomalies
 }
 
+interface CheckTaskInput {
+  name: string
+  eventTime: string
+  owner: string
+  scope: 'all' | 'category' | 'custom'
+  scopeCategories: MaterialCategory[]
+  scopeMaterialIds: string[]
+}
+
+interface CheckItemInput {
+  actualQuantity?: number | null
+  actionSuggestion?: CheckItemAction
+  note?: string
+}
+
 interface AppStore {
   materials: Material[]
   selectedIds: string[]
@@ -93,6 +122,8 @@ interface AppStore {
   onlyPendingTransfers: boolean
   anomalies: Anomaly[]
   transfers: Transfer[]
+  checkTasks: CheckTask[]
+  activeCheckTaskId: string | null
 
   setMaterials: (materials: Material[]) => void
   addMaterial: (material: Omit<Material, 'id' | 'createdAt' | 'updatedAt'>) => void
@@ -125,6 +156,44 @@ interface AppStore {
   }) => Transfer | null
   completeTransfer: (transferId: string) => void
   cancelTransfer: (transferId: string, cancelReason: string) => void
+
+  createCheckTask: (input: CheckTaskInput) => CheckTask
+  updateCheckTask: (taskId: string, updates: Partial<CheckTaskInput>) => void
+  deleteCheckTask: (taskId: string) => void
+  completeCheckTask: (taskId: string) => void
+  cancelCheckTask: (taskId: string, reason: string) => void
+  setActiveCheckTask: (taskId: string | null) => void
+  updateCheckItem: (taskId: string, materialId: string, updates: CheckItemInput) => void
+  recalcCheckTaskItems: (taskId: string) => void
+  getCheckTaskMaterialIds: (taskId: string) => Set<string>
+  getActiveTasksForMaterial: (materialId: string) => CheckTask[]
+  getCheckItem: (taskId: string, materialId: string) => CheckTaskItem | null
+}
+
+function resolveScopeMaterialIds(materials: Material[], task: Pick<CheckTask, 'scope' | 'scopeCategories' | 'scopeMaterialIds'>): string[] {
+  if (task.scope === 'all') return materials.map((m) => m.id)
+  if (task.scope === 'category') {
+    const cats = new Set(task.scopeCategories)
+    return materials.filter((m) => cats.has(m.category)).map((m) => m.id)
+  }
+  return task.scopeMaterialIds.filter((id) => materials.some((m) => m.id === id))
+}
+
+function computeItemResult(
+  material: Material | undefined,
+  item: CheckTaskItem,
+  pendingIn: number,
+): CheckItemResult {
+  if (!material) return '异常'
+  const actual = item.actualQuantity ?? material.quantity
+  const gap = Math.max(0, material.threshold - actual)
+  if (gap === 0) {
+    if (actual >= material.threshold) return '充足'
+    return '充足'
+  }
+  if (pendingIn >= gap) return '已覆盖'
+  if (item.actionSuggestion === '更新补料' || material.replenishNote) return '待补料'
+  return '缺口'
 }
 
 const DEFAULT_FILTERS: FilterState = { cabinet: '', category: '', status: '', responsible: '' }
@@ -139,6 +208,8 @@ export const useStore = create<AppStore>()(
       onlyPendingTransfers: false,
       anomalies: detectAnomalies(INITIAL_MATERIALS),
       transfers: INITIAL_TRANSFERS,
+      checkTasks: [],
+      activeCheckTaskId: null,
 
       setMaterials: (materials) => set({ materials, anomalies: detectAnomalies(materials) }),
 
@@ -343,6 +414,10 @@ export const useStore = create<AppStore>()(
         )
 
         set({ materials: updatedMaterials, transfers: updatedTransfers, anomalies: detectAnomalies(updatedMaterials) })
+
+        get().checkTasks.forEach((task) => {
+          if (task.status === '进行中') get().recalcCheckTaskItems(task.id)
+        })
       },
 
       cancelTransfer: (transferId, cancelReason) => {
@@ -357,6 +432,172 @@ export const useStore = create<AppStore>()(
         )
 
         set({ transfers: updatedTransfers })
+
+        get().checkTasks.forEach((task) => {
+          if (task.status === '进行中') get().recalcCheckTaskItems(task.id)
+        })
+      },
+
+      createCheckTask: (input) => {
+        const { materials } = get()
+        const ids = resolveScopeMaterialIds(materials, input)
+        const items: CheckTaskItem[] = ids.map((mid) => {
+          const material = materials.find((m) => m.id === mid)
+          const baseItem: CheckTaskItem = {
+            materialId: mid,
+            actualQuantity: null,
+            gapQuantity: 0,
+            actionSuggestion: '无需处理',
+            note: '',
+            result: '充足',
+          }
+          const pendingIn = get().getPendingTransferQuantity(mid)
+          baseItem.result = computeItemResult(material, baseItem, Math.max(0, pendingIn))
+          if (material) baseItem.gapQuantity = Math.max(0, material.threshold - material.quantity)
+          return baseItem
+        })
+
+        const task: CheckTask = {
+          id: generateId(),
+          name: input.name,
+          eventTime: input.eventTime,
+          owner: input.owner,
+          scope: input.scope,
+          scopeCategories: input.scopeCategories,
+          scopeMaterialIds: input.scopeMaterialIds,
+          status: '进行中',
+          items,
+          createdAt: now(),
+          updatedAt: now(),
+        }
+        set({ checkTasks: [...get().checkTasks, task], activeCheckTaskId: task.id })
+        return task
+      },
+
+      updateCheckTask: (taskId, updates) => {
+        const { checkTasks, materials } = get()
+        const checkTasks2 = checkTasks.map((task) => {
+          if (task.id !== taskId) return task
+          const next: CheckTask = {
+            ...task,
+            name: updates.name ?? task.name,
+            eventTime: updates.eventTime ?? task.eventTime,
+            owner: updates.owner ?? task.owner,
+            scope: updates.scope ?? task.scope,
+            scopeCategories: updates.scopeCategories ?? task.scopeCategories,
+            scopeMaterialIds: updates.scopeMaterialIds ?? task.scopeMaterialIds,
+            updatedAt: now(),
+          }
+          if (updates.scope || updates.scopeCategories || updates.scopeMaterialIds) {
+            const newIds = resolveScopeMaterialIds(materials, next)
+            const existingMap = new Map(task.items.map((i) => [i.materialId, i]))
+            next.items = newIds.map((mid) => {
+              const existing = existingMap.get(mid)
+              if (existing) return existing
+              const material = materials.find((m) => m.id === mid)
+              return {
+                materialId: mid,
+                actualQuantity: null,
+                gapQuantity: material ? Math.max(0, material.threshold - material.quantity) : 0,
+                actionSuggestion: '无需处理',
+                note: '',
+                result: '充足',
+              }
+            })
+          }
+          return next
+        })
+        set({ checkTasks: checkTasks2 })
+        get().recalcCheckTaskItems(taskId)
+      },
+
+      deleteCheckTask: (taskId) => {
+        set({
+          checkTasks: get().checkTasks.filter((t) => t.id !== taskId),
+          activeCheckTaskId: get().activeCheckTaskId === taskId ? null : get().activeCheckTaskId,
+        })
+      },
+
+      completeCheckTask: (taskId) => {
+        const tasks = get().checkTasks.map((t) =>
+          t.id === taskId ? { ...t, status: '已完成' as CheckTaskStatus, completedAt: now(), updatedAt: now() } : t
+        )
+        set({ checkTasks: tasks })
+      },
+
+      cancelCheckTask: (taskId, reason) => {
+        const tasks = get().checkTasks.map((t) =>
+          t.id === taskId
+            ? { ...t, status: '已取消' as CheckTaskStatus, cancelledAt: now(), cancelReason: reason, updatedAt: now() }
+            : t
+        )
+        set({ checkTasks: tasks })
+      },
+
+      setActiveCheckTask: (taskId) => set({ activeCheckTaskId: taskId }),
+
+      updateCheckItem: (taskId, materialId, updates) => {
+        const { checkTasks, materials } = get()
+        const tasks = checkTasks.map((task) => {
+          if (task.id !== taskId) return task
+          const items = task.items.map((item) => {
+            if (item.materialId !== materialId) return item
+            const merged: CheckTaskItem = {
+              ...item,
+              ...(updates.actualQuantity !== undefined ? { actualQuantity: updates.actualQuantity } : {}),
+              ...(updates.actionSuggestion !== undefined ? { actionSuggestion: updates.actionSuggestion } : {}),
+              ...(updates.note !== undefined ? { note: updates.note } : {}),
+              checkedAt: now(),
+            }
+            const material = materials.find((m) => m.id === materialId)
+            const actual = merged.actualQuantity ?? (material ? material.quantity : 0)
+            const gap = material ? Math.max(0, material.threshold - actual) : 0
+            const pendingIn = get().getPendingTransferQuantity(materialId)
+            merged.gapQuantity = gap
+            merged.result = computeItemResult(material, merged, Math.max(0, pendingIn))
+            return merged
+          })
+          return { ...task, items, updatedAt: now() }
+        })
+        set({ checkTasks: tasks })
+      },
+
+      recalcCheckTaskItems: (taskId) => {
+        const { checkTasks, materials } = get()
+        const tasks = checkTasks.map((task) => {
+          if (task.id !== taskId) return task
+          const items = task.items.map((item) => {
+            const material = materials.find((m) => m.id === item.materialId)
+            const actual = item.actualQuantity ?? (material ? material.quantity : 0)
+            const gap = material ? Math.max(0, material.threshold - actual) : 0
+            const pendingIn = get().getPendingTransferQuantity(item.materialId)
+            return {
+              ...item,
+              gapQuantity: gap,
+              result: computeItemResult(material, item, Math.max(0, pendingIn)),
+            }
+          })
+          return { ...task, items, updatedAt: now() }
+        })
+        set({ checkTasks: tasks })
+      },
+
+      getCheckTaskMaterialIds: (taskId) => {
+        const task = get().checkTasks.find((t) => t.id === taskId)
+        if (!task) return new Set()
+        return new Set(task.items.map((i) => i.materialId))
+      },
+
+      getActiveTasksForMaterial: (materialId) => {
+        return get().checkTasks.filter(
+          (t) => t.status === '进行中' && t.items.some((i) => i.materialId === materialId)
+        )
+      },
+
+      getCheckItem: (taskId, materialId) => {
+        const task = get().checkTasks.find((t) => t.id === taskId)
+        if (!task) return null
+        return task.items.find((i) => i.materialId === materialId) || null
       },
     }),
     {
@@ -366,6 +607,8 @@ export const useStore = create<AppStore>()(
         filters: state.filters,
         preEventMode: state.preEventMode,
         transfers: state.transfers,
+        checkTasks: state.checkTasks,
+        activeCheckTaskId: state.activeCheckTaskId,
       }),
     }
   )
