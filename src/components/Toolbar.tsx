@@ -1,4 +1,4 @@
-import { Plus, Filter, RotateCcw, ClipboardCheck, ListFilter, ArrowRightLeft } from 'lucide-react'
+import { Plus, Filter, RotateCcw, ClipboardCheck, ListFilter, ArrowRightLeft, ClipboardList } from 'lucide-react'
 import { useStore } from '@/store/useStore'
 import { MATERIAL_CATEGORIES, MATERIAL_STATUSES } from '@/types'
 import { cn } from '@/lib/utils'
@@ -6,10 +6,11 @@ import { cn } from '@/lib/utils'
 interface ToolbarProps {
   onAddClick: () => void
   onTransferClick: () => void
+  onCheckTaskClick?: () => void
 }
 
-export function Toolbar({ onAddClick, onTransferClick }: ToolbarProps) {
-  const { filters, setFilter, resetFilters, preEventMode, togglePreEventMode, onlyPendingTransfers, toggleOnlyPendingTransfers, selectedIds, batchSetStatus, clearSelection, deleteMaterials, materials, getFilteredMaterials, getPreEventMaterials, transfers } = useStore()
+export function Toolbar({ onAddClick, onTransferClick, onCheckTaskClick }: ToolbarProps) {
+  const { filters, setFilter, resetFilters, preEventMode, togglePreEventMode, onlyPendingTransfers, toggleOnlyPendingTransfers, selectedIds, batchSetStatus, clearSelection, deleteMaterials, materials, getFilteredMaterials, getPreEventMaterials, transfers, checkTasks } = useStore()
 
   const displayMaterials = preEventMode ? getPreEventMaterials() : getFilteredMaterials()
   const cabinets = [...new Set(materials.map((m) => m.cabinet).filter(Boolean))].sort()
@@ -17,6 +18,7 @@ export function Toolbar({ onAddClick, onTransferClick }: ToolbarProps) {
 
   const hasFilters = filters.cabinet || filters.category || filters.status || filters.responsible
   const pendingTransferCount = transfers.filter((t) => t.status === '待处理').length
+  const activeCheckTaskCount = checkTasks.filter((t) => t.status === '进行中' || t.status === '待复核').length
 
   const selectCls = 'bg-paper-dark/60 border border-paper-muted rounded-lg px-2.5 py-1.5 text-xs text-ink focus:outline-none focus:ring-2 focus:ring-ink/15 appearance-none cursor-pointer'
 
@@ -59,6 +61,18 @@ export function Toolbar({ onAddClick, onTransferClick }: ToolbarProps) {
           </button>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={onCheckTaskClick}
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue text-paper rounded-lg text-sm font-medium hover:bg-blue/90 transition-colors shadow-md shadow-blue/20"
+          >
+            <ClipboardList size={15} />
+            新建清点任务
+            {activeCheckTaskCount > 0 && (
+              <span className="inline-flex items-center justify-center min-w-[16px] h-4 rounded-full px-1 text-[10px] font-bold bg-paper/20 text-paper">
+                {activeCheckTaskCount}
+              </span>
+            )}
+          </button>
           <button
             onClick={onTransferClick}
             className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber text-paper rounded-lg text-sm font-medium hover:bg-amber/90 transition-colors shadow-md shadow-amber/20"

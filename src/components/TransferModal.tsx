@@ -9,9 +9,11 @@ interface TransferModalProps {
   onClose: () => void
   initialFromMaterialId?: string
   initialToCabinet?: string
+  checkTaskId?: string
+  checkTaskItemId?: string
 }
 
-export function TransferModal({ open, onClose, initialFromMaterialId, initialToCabinet }: TransferModalProps) {
+export function TransferModal({ open, onClose, initialFromMaterialId, initialToCabinet, checkTaskId, checkTaskItemId }: TransferModalProps) {
   const { materials, createTransfer, completeTransfer, cancelTransfer, getAvailableQuantity, transfers } = useStore()
 
   const [mode, setMode] = useState<'create' | 'manage'>('create')
@@ -65,6 +67,8 @@ export function TransferModal({ open, onClose, initialFromMaterialId, initialToC
       handler: form.handler,
       reason: form.reason,
       remark: form.remark,
+      checkTaskId,
+      checkTaskItemId,
     })
 
     if (result) {

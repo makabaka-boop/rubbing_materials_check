@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
-import { Trash2, Edit3, Check, X, ArrowRightLeft } from 'lucide-react'
+import { Trash2, Edit3, Check, X, ArrowRightLeft, ClipboardList } from 'lucide-react'
 import { useStore } from '@/store/useStore'
 import { StatusBadge, StatusSelect } from '@/components/StatusBadge'
-import { MATERIAL_CATEGORIES, TRANSFER_STATUS_COLORS, type MaterialCategory, type Material, type Transfer } from '@/types'
+import { MATERIAL_CATEGORIES, TRANSFER_STATUS_COLORS, CHECK_ITEM_STATUS_COLORS, type MaterialCategory, type Material, type Transfer } from '@/types'
 import { cn } from '@/lib/utils'
 
 interface MaterialTableProps {
@@ -12,7 +12,7 @@ interface MaterialTableProps {
 }
 
 export function MaterialTable({ materials, preEventMode, onRowTransfer }: MaterialTableProps) {
-  const { selectedIds, toggleSelect, toggleSelectAll, updateMaterial, deleteMaterial, getAvailableQuantity, getPendingTransferQuantity, getLatestTransfer } = useStore()
+  const { selectedIds, toggleSelect, toggleSelectAll, updateMaterial, deleteMaterial, getAvailableQuantity, getPendingTransferQuantity, getLatestTransfer, getMaterialCheckStatus } = useStore()
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editValues, setEditValues] = useState<Partial<Material>>({})
   const editRef = useRef<HTMLTableRowElement>(null)
@@ -88,6 +88,7 @@ export function MaterialTable({ materials, preEventMode, onRowTransfer }: Materi
             <th className="px-3 py-3 font-medium text-ink-muted text-xs tracking-wide">责任人</th>
             <th className="px-3 py-3 font-medium text-ink-muted text-xs tracking-wide">状态</th>
             <th className="px-3 py-3 font-medium text-ink-muted text-xs tracking-wide">最近调拨</th>
+            <th className="px-3 py-3 font-medium text-ink-muted text-xs tracking-wide">清点状态</th>
             <th className="px-3 py-3 font-medium text-ink-muted text-xs tracking-wide">补料说明</th>
             <th className="px-3 py-3 font-medium text-ink-muted text-xs tracking-wide">备注</th>
             <th className="px-3 py-3 font-medium text-ink-muted text-xs tracking-wide w-24">操作</th>
@@ -187,6 +188,9 @@ export function MaterialTable({ materials, preEventMode, onRowTransfer }: Materi
                       <span className="font-mono text-ink-muted text-xs">—</span>
                     </td>
                     <td className="px-3 py-2.5">
+                      <span className="font-mono text-ink-muted text-xs">—</span>
+                    </td>
+                    <td className="px-3 py-2.5">
                       <input
                         value={editValues.replenishNote || ''}
                         onChange={(e) => setEditValues({ ...editValues, replenishNote: e.target.value })}
@@ -258,6 +262,23 @@ export function MaterialTable({ materials, preEventMode, onRowTransfer }: Materi
                       ) : (
                         <span className="text-ink-muted text-xs">—</span>
                       )}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      {(() => {
+                        const checkStatus = getMaterialCheckStatus(m.id)
+                        if (checkStatus) {
+                          return (
+                            <span className={cn(
+                              'inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[11px] border',
+                              CHECK_ITEM_STATUS_COLORS[checkStatus.status]
+                            )}>
+                              <ClipboardList size={10} />
+                              {checkStatus.status}
+                            </span>
+                          )
+                        }
+                        return <span className="text-ink-muted text-xs">—</span>
+                      })()}
                     </td>
                     <td className="px-3 py-2.5 text-xs text-ink-muted max-w-[140px] truncate">{m.replenishNote || '—'}</td>
                     <td className="px-3 py-2.5 text-xs text-ink-muted max-w-[100px] truncate">{m.remark || '—'}</td>

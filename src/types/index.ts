@@ -77,3 +77,51 @@ export const ANOMALY_ICONS: Record<AnomalyType, string> = {
   '柜位冲突': 'Layers',
   '责任人空缺': 'UserX',
 }
+
+export type CheckTaskStatus = '进行中' | '待复核' | '已完成' | '已取消'
+export type CheckItemStatus = '待清点' | '正常' | '缺口' | '待调拨' | '已解决'
+export type CheckSuggestion = '调拨' | '补料' | '清洁' | '其他'
+
+export interface CheckTaskItem {
+  materialId: string
+  actualQuantity: number
+  gapQuantity: number
+  suggestion: CheckSuggestion
+  note: string
+  transferId?: string
+  status: CheckItemStatus
+  checkedAt?: string
+}
+
+export interface CheckTask {
+  id: string
+  name: string
+  eventDate: string
+  responsible: string
+  categoryScope: MaterialCategory[]
+  cabinetScope: string[]
+  status: CheckTaskStatus
+  items: CheckTaskItem[]
+  createdAt: string
+  updatedAt: string
+  completedAt?: string
+}
+
+export const CHECK_TASK_STATUSES: CheckTaskStatus[] = ['进行中', '待复核', '已完成', '已取消']
+export const CHECK_ITEM_STATUSES: CheckItemStatus[] = ['待清点', '正常', '缺口', '待调拨', '已解决']
+export const CHECK_SUGGESTIONS: CheckSuggestion[] = ['调拨', '补料', '清洁', '其他']
+
+export const CHECK_TASK_STATUS_COLORS: Record<CheckTaskStatus, string> = {
+  '进行中': 'bg-blue/15 text-blue border-blue/30',
+  '待复核': 'bg-amber/15 text-amber border-amber/30',
+  '已完成': 'bg-pine/15 text-pine border-pine/30',
+  '已取消': 'bg-ink-muted/15 text-ink-muted border-ink-muted/30',
+}
+
+export const CHECK_ITEM_STATUS_COLORS: Record<CheckItemStatus, string> = {
+  '待清点': 'bg-ink-muted/15 text-ink-muted border-ink-muted/30',
+  '正常': 'bg-pine/15 text-pine border-pine/30',
+  '缺口': 'bg-vermilion/15 text-vermilion border-vermilion/30',
+  '待调拨': 'bg-amber/15 text-amber border-amber/30',
+  '已解决': 'bg-pine/15 text-pine border-pine/30',
+}
