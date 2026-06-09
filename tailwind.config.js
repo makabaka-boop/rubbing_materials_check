@@ -15,6 +15,7 @@ export default {
         vermilion: '#c0392b',
         pine: '#2d6a4f',
         amber: '#d4a017',
+        blue: '#2c5aa0',
         'ink-light': '#2d2d4a',
         'ink-muted': '#4a4a6a',
         'paper-muted': '#d4cfc4',

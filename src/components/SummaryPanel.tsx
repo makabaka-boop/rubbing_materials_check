@@ -1,6 +1,7 @@
-import { AlertTriangle, Copy, Layers, UserX, FileText, AlertCircle, ArrowRightLeft, CheckCircle, Clock } from 'lucide-react'
+import { AlertTriangle, Copy, Layers, UserX, FileText, AlertCircle, ArrowRightLeft, CheckCircle, Clock, ClipboardList, ChevronRight } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { useStore } from '@/store/useStore'
-import { ANOMALY_ICONS, TRANSFER_STATUS_COLORS, type AnomalyType, type Transfer } from '@/types'
+import { ANOMALY_ICONS, TRANSFER_STATUS_COLORS, CHECK_TASK_STATUS_COLORS, type AnomalyType, type Transfer } from '@/types'
 import { cn } from '@/lib/utils'
 
 const ICON_MAP: Record<string, React.ElementType> = {
@@ -25,7 +26,8 @@ const ANOMILY_ICON_COLORS: Record<AnomalyType, string> = {
 }
 
 export function SummaryPanel() {
-  const { anomalies, selectedIds, materials, transfers, toggleSelect, preEventMode, getFilteredMaterials, getPreEventMaterials } = useStore()
+  const navigate = useNavigate()
+  const { anomalies, selectedIds, materials, transfers, toggleSelect, preEventMode, getFilteredMaterials, getPreEventMaterials, checkTasks, getCheckTaskStats } = useStore()
 
   const displayMaterials = preEventMode ? getPreEventMaterials() : getFilteredMaterials()
   const displayIdSet = new Set(displayMaterials.map((m) => m.id))
@@ -37,6 +39,7 @@ export function SummaryPanel() {
 
   const pendingTransfers = transfers.filter((t) => t.status === '待处理')
   const completedTransfers = transfers.filter((t) => t.status === '已完成')
+  const activeCheckTasks = checkTasks.filter((t) => t.status === '进行中' || t.status === '待复核')
 
   const pendingInQuantity = pendingTransfers.reduce((sum, t) => {
     const toMaterial = materials.find((m) => m.cabinet === t.toCabinet && m.name === t.materialName)
@@ -75,7 +78,72 @@ export function SummaryPanel() {
   )
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-6">
+    <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-5 gap-6">
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <ClipboardList size={16} className="text-blue" />
+            <h3 className="font-serif text-base font-semibold text-ink">清点任务概览</h3>
+          </div>
+          {activeCheckTasks.length > 0 && (
+            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue text-paper text-[10px] font-bold">
+              {activeCheckTasks.length}
+            </span>
+          )}
+        </div>
+
+        {activeCheckTasks.length === 0 ? (
+          <div className="text-sm text-ink-muted/60 italic py-6 text-center bg-blue/[0.02] rounded-xl border border-dashed border-blue/20">
+            暂无进行中的清点任务
+          </div>
+        ) : (
+          <div className="space-y-2.5 max-h-[280px] overflow-y-auto pr-1">
+            {activeCheckTasks.slice(0, 4).map((task) => {
+              const stats = getCheckTaskStats(task.id)
+              return (
+                <div
+                  key={task.id}
+                  onClick={() => navigate(`/check-task/${task.id}`)}
+                  className="p-3 rounded-xl border border-blue/20 bg-blue/[0.03] cursor-pointer hover:bg-blue/[0.06] transition-all group"
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="font-medium text-sm text-ink truncate">{task.name}</span>
+                    <span className={cn('text-[10px] px-1.5 py-0.5 rounded-full border shrink-0 ml-2', CHECK_TASK_STATUS_COLORS[task.status])}>
+                      {task.status}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-ink-muted">
+                    <span>{task.responsible}</span>
+                    <span>·</span>
+                    <span>{stats.pending + stats.gap + stats.pendingTransfer} 项待处理</span>
+                    <ChevronRight size={12} className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity text-blue" />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        <div className="p-3 rounded-xl bg-blue/[0.04] border border-blue/15">
+          <div className="flex items-center gap-2 mb-1">
+            <AlertTriangle size={14} className="text-blue" />
+            <span className="text-xs font-semibold text-blue">清点缺口汇总</span>
+          </div>
+          <p className="text-xs text-ink-muted">
+            {activeCheckTasks.length > 0 ? (
+              <>
+                {activeCheckTasks.reduce((sum, t) => {
+                  const stats = getCheckTaskStats(t.id)
+                  return sum + stats.gap + stats.pendingTransfer
+                }, 0)} 项材料存在缺口
+              </>
+            ) : (
+              '暂无清点缺口'
+            )}
+          </p>
+        </div>
+      </div>
+
       <div className="space-y-4">
         <div className="flex items-center gap-2">
           <FileText size={16} className="text-ink" />
