@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
-import { Trash2, Edit3, Check, X, ArrowRightLeft } from 'lucide-react'
+import { Trash2, Edit3, Check, X, ArrowRightLeft, ClipboardCheck } from 'lucide-react'
 import { useStore } from '@/store/useStore'
 import { StatusBadge, StatusSelect } from '@/components/StatusBadge'
-import { MATERIAL_CATEGORIES, TRANSFER_STATUS_COLORS, type MaterialCategory, type Material, type Transfer } from '@/types'
+import { MATERIAL_CATEGORIES, TRANSFER_STATUS_COLORS, CHECK_ITEM_RESULT_COLORS, type MaterialCategory, type Material } from '@/types'
 import { cn } from '@/lib/utils'
 
 interface MaterialTableProps {
@@ -12,7 +12,7 @@ interface MaterialTableProps {
 }
 
 export function MaterialTable({ materials, preEventMode, onRowTransfer }: MaterialTableProps) {
-  const { selectedIds, toggleSelect, toggleSelectAll, updateMaterial, deleteMaterial, getAvailableQuantity, getPendingTransferQuantity, getLatestTransfer } = useStore()
+  const { selectedIds, toggleSelect, toggleSelectAll, updateMaterial, deleteMaterial, getAvailableQuantity, getPendingTransferQuantity, getLatestTransfer, getActiveTasksForMaterial } = useStore()
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editValues, setEditValues] = useState<Partial<Material>>({})
   const editRef = useRef<HTMLTableRowElement>(null)
@@ -88,6 +88,7 @@ export function MaterialTable({ materials, preEventMode, onRowTransfer }: Materi
             <th className="px-3 py-3 font-medium text-ink-muted text-xs tracking-wide">责任人</th>
             <th className="px-3 py-3 font-medium text-ink-muted text-xs tracking-wide">状态</th>
             <th className="px-3 py-3 font-medium text-ink-muted text-xs tracking-wide">最近调拨</th>
+            <th className="px-3 py-3 font-medium text-ink-muted text-xs tracking-wide">清点任务</th>
             <th className="px-3 py-3 font-medium text-ink-muted text-xs tracking-wide">补料说明</th>
             <th className="px-3 py-3 font-medium text-ink-muted text-xs tracking-wide">备注</th>
             <th className="px-3 py-3 font-medium text-ink-muted text-xs tracking-wide w-24">操作</th>
@@ -102,6 +103,7 @@ export function MaterialTable({ materials, preEventMode, onRowTransfer }: Materi
             const pendingTransferQty = getPendingTransferQuantity(m.id)
             const latestTransfer = getLatestTransfer(m.id)
             const availableQty = getAvailableQuantity(m.id)
+            const activeTasks = getActiveTasksForMaterial(m.id)
 
             return (
               <tr
@@ -187,6 +189,9 @@ export function MaterialTable({ materials, preEventMode, onRowTransfer }: Materi
                       <span className="font-mono text-ink-muted text-xs">—</span>
                     </td>
                     <td className="px-3 py-2.5">
+                      <span className="font-mono text-ink-muted text-xs">—</span>
+                    </td>
+                    <td className="px-3 py-2.5">
                       <input
                         value={editValues.replenishNote || ''}
                         onChange={(e) => setEditValues({ ...editValues, replenishNote: e.target.value })}
@@ -255,6 +260,35 @@ export function MaterialTable({ materials, preEventMode, onRowTransfer }: Materi
                         )}>
                           {latestTransfer.status}
                         </span>
+                      ) : (
+                        <span className="text-ink-muted text-xs">—</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      {activeTasks.length > 0 ? (
+                        <div className="flex flex-wrap gap-1 max-w-[160px]">
+                          {activeTasks.slice(0, 2).map((t) => {
+                            const item = t.items.find((i) => i.materialId === m.id)
+                            const result = item?.result
+                            return (
+                              <span
+                                key={t.id}
+                                title={t.name}
+                                className={cn(
+                                  'inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] border max-w-[140px] truncate',
+                                  result ? CHECK_ITEM_RESULT_COLORS[result] : 'bg-ink/5 text-ink-muted border-ink/10'
+                                )}
+                              >
+                                <ClipboardCheck size={10} />
+                                <span className="truncate">{t.name}</span>
+                                {result && <span className="ml-0.5">·{result}</span>}
+                              </span>
+                            )
+                          })}
+                          {activeTasks.length > 2 && (
+                            <span className="text-[10px] text-ink-muted">+{activeTasks.length - 2}</span>
+                          )}
+                        </div>
                       ) : (
                         <span className="text-ink-muted text-xs">—</span>
                       )}
