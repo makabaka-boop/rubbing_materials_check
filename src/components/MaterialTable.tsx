@@ -1,18 +1,22 @@
 import { useState, useRef, useEffect } from 'react'
-import { Trash2, Edit3, Check, X, ArrowRightLeft } from 'lucide-react'
+import { Trash2, Edit3, Check, X, ArrowRightLeft, ClipboardCheck } from 'lucide-react'
 import { useStore } from '@/store/useStore'
 import { StatusBadge, StatusSelect } from '@/components/StatusBadge'
-import { MATERIAL_CATEGORIES, TRANSFER_STATUS_COLORS, type MaterialCategory, type Material, type Transfer } from '@/types'
+import { MATERIAL_CATEGORIES, TRANSFER_STATUS_COLORS, CHECK_ITEM_STATUS_COLORS, type MaterialCategory, type Material, type Transfer } from '@/types'
 import { cn } from '@/lib/utils'
 
 interface MaterialTableProps {
   materials: Material[]
   preEventMode: boolean
   onRowTransfer: (materialId: string, toCabinet?: string) => void
+  onOpenCheckTask?: () => void
 }
 
-export function MaterialTable({ materials, preEventMode, onRowTransfer }: MaterialTableProps) {
-  const { selectedIds, toggleSelect, toggleSelectAll, updateMaterial, deleteMaterial, getAvailableQuantity, getPendingTransferQuantity, getLatestTransfer } = useStore()
+export function MaterialTable({ materials, preEventMode, onRowTransfer, onOpenCheckTask }: MaterialTableProps) {
+  const { selectedIds, toggleSelect, toggleSelectAll, updateMaterial, deleteMaterial, getAvailableQuantity, getPendingTransferQuantity, getLatestTransfer, getCurrentCheckTask, getLatestCheckTaskItem } = useStore()
+
+  const currentTask = getCurrentCheckTask()
+  const hasActiveTask = currentTask && currentTask.status === '进行中'
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editValues, setEditValues] = useState<Partial<Material>>({})
   const editRef = useRef<HTMLTableRowElement>(null)
@@ -87,6 +91,9 @@ export function MaterialTable({ materials, preEventMode, onRowTransfer }: Materi
             <th className="px-3 py-3 font-medium text-ink-muted text-xs tracking-wide">最低阈值</th>
             <th className="px-3 py-3 font-medium text-ink-muted text-xs tracking-wide">责任人</th>
             <th className="px-3 py-3 font-medium text-ink-muted text-xs tracking-wide">状态</th>
+            {hasActiveTask && (
+              <th className="px-3 py-3 font-medium text-ink-muted text-xs tracking-wide">清点状态</th>
+            )}
             <th className="px-3 py-3 font-medium text-ink-muted text-xs tracking-wide">最近调拨</th>
             <th className="px-3 py-3 font-medium text-ink-muted text-xs tracking-wide">补料说明</th>
             <th className="px-3 py-3 font-medium text-ink-muted text-xs tracking-wide">备注</th>
@@ -183,6 +190,11 @@ export function MaterialTable({ materials, preEventMode, onRowTransfer }: Materi
                         onChange={(status) => setEditValues({ ...editValues, status })}
                       />
                     </td>
+                    {hasActiveTask && (
+                      <td className="px-3 py-2.5">
+                        <span className="font-mono text-ink-muted text-xs">—</span>
+                      </td>
+                    )}
                     <td className="px-3 py-2.5">
                       <span className="font-mono text-ink-muted text-xs">—</span>
                     </td>
@@ -247,6 +259,27 @@ export function MaterialTable({ materials, preEventMode, onRowTransfer }: Materi
                     <td className="px-3 py-2.5">
                       <StatusBadge status={m.status} />
                     </td>
+                    {hasActiveTask && (
+                      <td className="px-3 py-2.5">
+                        {(() => {
+                          const taskItem = currentTask?.items.find((i) => i.materialId === m.id)
+                          if (taskItem) {
+                            return (
+                              <span className={cn(
+                                'inline-flex items-center px-1.5 py-0.5 rounded-full text-xs border cursor-pointer hover:opacity-80',
+                                CHECK_ITEM_STATUS_COLORS[taskItem.status]
+                              )}
+                                onClick={onOpenCheckTask}
+                                title="点击查看清点详情"
+                              >
+                                {taskItem.status}
+                              </span>
+                            )
+                          }
+                          return <span className="text-ink-muted text-xs">未关联</span>
+                        })()}
+                      </td>
+                    )}
                     <td className="px-3 py-2.5">
                       {latestTransfer ? (
                         <span className={cn(

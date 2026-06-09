@@ -1,4 +1,4 @@
-import { Plus, Filter, RotateCcw, ClipboardCheck, ListFilter, ArrowRightLeft } from 'lucide-react'
+import { Plus, Filter, RotateCcw, ClipboardCheck, ListFilter, ArrowRightLeft, ClipboardList } from 'lucide-react'
 import { useStore } from '@/store/useStore'
 import { MATERIAL_CATEGORIES, MATERIAL_STATUSES } from '@/types'
 import { cn } from '@/lib/utils'
@@ -6,10 +6,14 @@ import { cn } from '@/lib/utils'
 interface ToolbarProps {
   onAddClick: () => void
   onTransferClick: () => void
+  onCheckTaskClick: () => void
 }
 
-export function Toolbar({ onAddClick, onTransferClick }: ToolbarProps) {
-  const { filters, setFilter, resetFilters, preEventMode, togglePreEventMode, onlyPendingTransfers, toggleOnlyPendingTransfers, selectedIds, batchSetStatus, clearSelection, deleteMaterials, materials, getFilteredMaterials, getPreEventMaterials, transfers } = useStore()
+export function Toolbar({ onAddClick, onTransferClick, onCheckTaskClick }: ToolbarProps) {
+  const { filters, setFilter, resetFilters, preEventMode, togglePreEventMode, onlyPendingTransfers, toggleOnlyPendingTransfers, selectedIds, batchSetStatus, clearSelection, deleteMaterials, materials, getFilteredMaterials, getPreEventMaterials, transfers, checkTasks, getCurrentCheckTask } = useStore()
+
+  const currentTask = getCurrentCheckTask()
+  const activeTaskCount = checkTasks.filter((t) => t.status === '进行中').length
 
   const displayMaterials = preEventMode ? getPreEventMaterials() : getFilteredMaterials()
   const cabinets = [...new Set(materials.map((m) => m.cabinet).filter(Boolean))].sort()
@@ -59,6 +63,23 @@ export function Toolbar({ onAddClick, onTransferClick }: ToolbarProps) {
           </button>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={onCheckTaskClick}
+            className={cn(
+              'inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-md',
+              activeTaskCount > 0
+                ? 'bg-pine text-paper hover:bg-pine/90 shadow-pine/20'
+                : 'bg-pine/10 text-pine hover:bg-pine/20 border border-pine/20'
+            )}
+          >
+            <ClipboardList size={15} />
+            清点任务
+            {activeTaskCount > 0 && (
+              <span className="inline-flex items-center justify-center min-w-[18px] h-4 rounded-full px-1 text-[10px] font-bold bg-paper/20 text-paper">
+                {activeTaskCount}
+              </span>
+            )}
+          </button>
           <button
             onClick={onTransferClick}
             className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber text-paper rounded-lg text-sm font-medium hover:bg-amber/90 transition-colors shadow-md shadow-amber/20"

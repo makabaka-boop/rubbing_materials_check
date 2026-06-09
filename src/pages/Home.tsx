@@ -5,25 +5,49 @@ import { MaterialTable } from '@/components/MaterialTable'
 import { SummaryPanel } from '@/components/SummaryPanel'
 import { AddMaterialModal } from '@/components/AddMaterialModal'
 import { TransferModal } from '@/components/TransferModal'
+import { CheckTaskModal } from '@/components/CheckTaskModal'
+import { CheckTaskDetail } from '@/components/CheckTaskDetail'
 import { ClipboardCheck, ArrowRightLeft } from 'lucide-react'
 
 export default function Home() {
   const [showAddModal, setShowAddModal] = useState(false)
   const [showTransferModal, setShowTransferModal] = useState(false)
+  const [showCheckTaskModal, setShowCheckTaskModal] = useState(false)
+  const [showCheckTaskDetail, setShowCheckTaskDetail] = useState(false)
   const [transferFromMaterialId, setTransferFromMaterialId] = useState<string | undefined>(undefined)
-  const { preEventMode, onlyPendingTransfers, getFilteredMaterials, getPreEventMaterials } = useStore()
+  const [transferToCabinet, setTransferToCabinet] = useState<string | undefined>(undefined)
+  const { preEventMode, onlyPendingTransfers, getFilteredMaterials, getPreEventMaterials, startCheckTask, updateMaterial } = useStore()
 
   const displayMaterials = preEventMode ? getPreEventMaterials() : getFilteredMaterials()
 
-  const handleRowTransfer = (materialId: string) => {
+  const handleRowTransfer = (materialId: string, toCabinet?: string) => {
     setTransferFromMaterialId(materialId)
+    setTransferToCabinet(toCabinet)
     setShowTransferModal(true)
+  }
+
+  const handleStartTask = (taskId: string) => {
+    startCheckTask(taskId)
+    setShowCheckTaskDetail(true)
+  }
+
+  const handleContinueTask = (taskId: string) => {
+    startCheckTask(taskId)
+    setShowCheckTaskDetail(true)
+  }
+
+  const handleUpdateMaterialNote = (materialId: string, note: string) => {
+    updateMaterial(materialId, { replenishNote: note })
   }
 
   return (
     <div className="min-h-screen bg-paper font-sans">
       <div className="max-w-[1600px] mx-auto px-6 py-6 space-y-5">
-        <Toolbar onAddClick={() => setShowAddModal(true)} onTransferClick={() => { setTransferFromMaterialId(undefined); setShowTransferModal(true) }} />
+        <Toolbar
+          onAddClick={() => setShowAddModal(true)}
+          onTransferClick={() => { setTransferFromMaterialId(undefined); setTransferToCabinet(undefined); setShowTransferModal(true) }}
+          onCheckTaskClick={() => setShowCheckTaskModal(true)}
+        />
 
         {(preEventMode || onlyPendingTransfers) && (
           <div className="flex items-center gap-4 flex-wrap">
@@ -45,16 +69,44 @@ export default function Home() {
         )}
 
         <div className="bg-paper rounded-2xl border border-ink/8 shadow-sm overflow-hidden">
-          <MaterialTable materials={displayMaterials} preEventMode={preEventMode} onRowTransfer={handleRowTransfer} />
+          <MaterialTable
+            materials={displayMaterials}
+            preEventMode={preEventMode}
+            onRowTransfer={handleRowTransfer}
+            onOpenCheckTask={() => setShowCheckTaskDetail(true)}
+          />
         </div>
 
         <div className="bg-paper rounded-2xl border border-ink/8 shadow-sm p-5">
-          <SummaryPanel />
+          <SummaryPanel
+            onOpenCheckTask={() => setShowCheckTaskModal(true)}
+            onContinueTask={handleContinueTask}
+          />
         </div>
       </div>
 
       <AddMaterialModal open={showAddModal} onClose={() => setShowAddModal(false)} />
-      <TransferModal open={showTransferModal} onClose={() => setShowTransferModal(false)} initialFromMaterialId={transferFromMaterialId} />
+      <TransferModal
+        open={showTransferModal}
+        onClose={() => {
+          setShowTransferModal(false)
+          setTransferFromMaterialId(undefined)
+          setTransferToCabinet(undefined)
+        }}
+        initialFromMaterialId={transferFromMaterialId}
+        initialToCabinet={transferToCabinet}
+      />
+      <CheckTaskModal
+        open={showCheckTaskModal}
+        onClose={() => setShowCheckTaskModal(false)}
+        onStartTask={handleStartTask}
+      />
+      <CheckTaskDetail
+        open={showCheckTaskDetail}
+        onClose={() => setShowCheckTaskDetail(false)}
+        onTransferClick={handleRowTransfer}
+        onUpdateMaterialNote={handleUpdateMaterialNote}
+      />
     </div>
   )
 }

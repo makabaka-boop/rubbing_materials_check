@@ -1,6 +1,6 @@
-import { AlertTriangle, Copy, Layers, UserX, FileText, AlertCircle, ArrowRightLeft, CheckCircle, Clock } from 'lucide-react'
+import { AlertTriangle, Copy, Layers, UserX, FileText, AlertCircle, ArrowRightLeft, CheckCircle, Clock, ClipboardCheck, Play, List } from 'lucide-react'
 import { useStore } from '@/store/useStore'
-import { ANOMALY_ICONS, TRANSFER_STATUS_COLORS, type AnomalyType, type Transfer } from '@/types'
+import { ANOMALY_ICONS, TRANSFER_STATUS_COLORS, CHECK_TASK_STATUS_COLORS, type AnomalyType, type Transfer, type CheckTask } from '@/types'
 import { cn } from '@/lib/utils'
 
 const ICON_MAP: Record<string, React.ElementType> = {
@@ -24,8 +24,13 @@ const ANOMILY_ICON_COLORS: Record<AnomalyType, string> = {
   '责任人空缺': 'text-vermilion',
 }
 
-export function SummaryPanel() {
-  const { anomalies, selectedIds, materials, transfers, toggleSelect, preEventMode, getFilteredMaterials, getPreEventMaterials } = useStore()
+interface SummaryPanelProps {
+  onOpenCheckTask?: () => void
+  onContinueTask?: (taskId: string) => void
+}
+
+export function SummaryPanel({ onOpenCheckTask, onContinueTask }: SummaryPanelProps) {
+  const { anomalies, selectedIds, materials, transfers, toggleSelect, preEventMode, getFilteredMaterials, getPreEventMaterials, checkTasks, getCurrentCheckTask } = useStore()
 
   const displayMaterials = preEventMode ? getPreEventMaterials() : getFilteredMaterials()
   const displayIdSet = new Set(displayMaterials.map((m) => m.id))
@@ -45,6 +50,16 @@ export function SummaryPanel() {
     }
     return sum
   }, 0)
+
+  const currentTask = getCurrentCheckTask()
+  const activeTasks = checkTasks.filter((t) => t.status === '进行中')
+  const recentTasks = [...checkTasks]
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 3)
+
+  const taskTotalGap = currentTask
+    ? currentTask.items.reduce((sum, item) => sum + item.gapQuantity, 0)
+    : 0
 
   const TransferCard = ({ t, clickable = false }: { t: Transfer; clickable?: boolean }) => (
     <div
@@ -74,8 +89,158 @@ export function SummaryPanel() {
     </div>
   )
 
+  const TaskCard = ({ task }: { task: CheckTask }) => (
+    <div
+      onClick={() => onContinueTask?.(task.id)}
+      className="p-3 rounded-xl border border-paper-muted bg-paper-dark/30 cursor-pointer transition-all hover:shadow-md hover:border-ink/20"
+    >
+      <div className="flex items-center justify-between mb-2">
+        <span className="font-medium text-sm text-ink truncate">{task.name}</span>
+        <span className={cn('text-xs px-1.5 py-0.5 rounded-full border shrink-0', CHECK_TASK_STATUS_COLORS[task.status])}>
+          {task.status}
+        </span>
+      </div>
+      <div className="grid grid-cols-3 gap-1 text-xs">
+        <div className="text-center">
+          <div className="font-semibold text-ink">{task.totalCount}</div>
+          <div className="text-ink-muted">总项</div>
+        </div>
+        <div className="text-center">
+          <div className="font-semibold text-amber">{task.checkedCount}</div>
+          <div className="text-ink-muted">已点</div>
+        </div>
+        <div className="text-center">
+          <div className={cn('font-semibold', task.gapCount > 0 ? 'text-vermilion' : 'text-pine')}>
+            {task.gapCount}
+          </div>
+          <div className="text-ink-muted">缺口</div>
+        </div>
+      </div>
+      <div className="mt-2 text-xs text-ink-muted truncate">
+        负责人：{task.responsible}
+      </div>
+    </div>
+  )
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-6">
+    <div className="space-y-6">
+      {checkTasks.length > 0 && (
+        <div className="p-5 bg-gradient-to-r from-ink/[0.03] to-pine/[0.03] rounded-2xl border border-ink/10">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <ClipboardCheck size={18} className="text-ink" />
+              <h3 className="font-serif text-lg font-semibold text-ink">清点任务概览</h3>
+            </div>
+            <button
+              onClick={onOpenCheckTask}
+              className="inline-flex items-center gap-1 px-3 py-1.5 bg-ink text-paper rounded-lg text-xs font-medium hover:bg-ink-light transition-colors"
+            >
+              <List size={12} />
+              全部任务
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {currentTask ? (
+              <div className="lg:col-span-2 p-4 bg-paper rounded-xl border border-amber/20">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-ink">{currentTask.name}</span>
+                      <span className={cn('text-xs px-2 py-0.5 rounded-full border', CHECK_TASK_STATUS_COLORS[currentTask.status])}>
+                        {currentTask.status}
+                      </span>
+                    </div>
+                    <div className="text-xs text-ink-muted mt-1">
+                      活动时间：{currentTask.eventTime} · 负责人：{currentTask.responsible}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => onContinueTask?.(currentTask.id)}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 bg-amber text-paper rounded-lg text-xs font-medium hover:bg-amber/90 transition-colors"
+                  >
+                    <Play size={12} />
+                    {currentTask.status === '进行中' ? '继续清点' : '查看详情'}
+                  </button>
+                </div>
+                <div className="grid grid-cols-4 gap-3">
+                  <div className="text-center p-2 bg-paper-dark/30 rounded-lg">
+                    <div className="text-xl font-bold text-ink">{currentTask.totalCount}</div>
+                    <div className="text-xs text-ink-muted">总项数</div>
+                  </div>
+                  <div className="text-center p-2 bg-paper-dark/30 rounded-lg">
+                    <div className="text-xl font-bold text-amber">{currentTask.checkedCount}</div>
+                    <div className="text-xs text-ink-muted">已清点</div>
+                  </div>
+                  <div className="text-center p-2 bg-paper-dark/30 rounded-lg">
+                    <div className={cn('text-xl font-bold', currentTask.gapCount > 0 ? 'text-vermilion' : 'text-pine')}>
+                      {currentTask.gapCount}
+                    </div>
+                    <div className="text-xs text-ink-muted">有缺口</div>
+                  </div>
+                  <div className="text-center p-2 bg-paper-dark/30 rounded-lg">
+                    <div className="text-xl font-bold text-pine">{taskTotalGap}</div>
+                    <div className="text-xs text-ink-muted">缺口总数</div>
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <div className="flex items-center justify-between text-xs mb-1">
+                    <span className="text-ink-muted">清点进度</span>
+                    <span className="font-semibold text-ink">
+                      {currentTask.totalCount > 0 ? Math.round((currentTask.checkedCount / currentTask.totalCount) * 100) : 0}%
+                    </span>
+                  </div>
+                  <div className="h-2 bg-paper-dark rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-amber to-pine transition-all"
+                      style={{
+                        width: `${currentTask.totalCount > 0 ? (currentTask.checkedCount / currentTask.totalCount) * 100 : 0}%`
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="lg:col-span-2 p-4 bg-paper rounded-xl border border-dashed border-paper-muted flex flex-col items-center justify-center">
+                <ClipboardCheck size={24} className="text-ink-muted mb-2" />
+                <p className="text-sm text-ink-muted mb-2">暂无进行中的清点任务</p>
+                <button
+                  onClick={onOpenCheckTask}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 bg-ink text-paper rounded-lg text-xs font-medium hover:bg-ink-light transition-colors"
+                >
+                  <List size={12} />
+                  查看任务列表
+                </button>
+              </div>
+            )}
+
+            {recentTasks.filter(t => t.id !== currentTask?.id).slice(0, 2).map((task) => (
+              <TaskCard key={task.id} task={task} />
+            ))}
+          </div>
+
+          {currentTask && currentTask.gapCount > 0 && (
+            <div className="mt-4 p-3 bg-vermilion/[0.04] border border-vermilion/15 rounded-xl">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle size={14} className="text-vermilion" />
+                  <span className="text-xs font-semibold text-vermilion">
+                    当前任务缺口汇总：{currentTask.gapCount} 项材料存在缺口，共缺 {taskTotalGap} 件
+                  </span>
+                </div>
+                <button
+                  onClick={() => onContinueTask?.(currentTask.id)}
+                  className="text-xs text-vermilion hover:underline"
+                >
+                  处理缺口 →
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-6">
       <div className="space-y-4">
         <div className="flex items-center gap-2">
           <FileText size={16} className="text-ink" />
@@ -234,6 +399,7 @@ export function SummaryPanel() {
             ))}
           </div>
         )}
+      </div>
       </div>
     </div>
   )
